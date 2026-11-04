@@ -1,0 +1,48 @@
+# Copies every update of this repo into the BBM/ folder of teammyos/myos-site
+# so it appears at https://myos.co.il/BBM . Only the BBM/ folder is ever touched.
+name: Sync to myos.co.il/BBM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: sync-bbm
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout BBM
+        uses: actions/checkout@v4
+        with:
+          path: bbm
+
+      - name: Checkout myos-site
+        uses: actions/checkout@v4
+        with:
+          repository: teammyos/myos-site
+          token: ${{ secrets.MYOS_SITE_TOKEN }}
+          path: site
+
+      - name: Copy files into BBM folder
+        run: |
+          mkdir -p site/BBM
+          rsync -a --delete \
+            --exclude '.git' --exclude '.github' --exclude 'README.md' \
+            bbm/ site/BBM/
+
+      - name: Commit and push (BBM folder only)
+        working-directory: site
+        run: |
+          git config user.name "bbm-sync"
+          git config user.email "bbm-sync@users.noreply.github.com"
+          git add BBM
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Update BBM from teammyos/BBM@${GITHUB_SHA::7}"
+          git push
